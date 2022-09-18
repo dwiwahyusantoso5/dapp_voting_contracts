@@ -125,7 +125,7 @@ contract Crypto {
     //     return Equal(fza,xCCa)&&Equal(zb,xfCCb);
     // }
 
-    function verifyZeroOrOne(uint[2] memory c, uint[2] memory H, uint[18] memory proof) public view returns (bool ) {
+    function verifyZeroOrOne(uint[2] memory c, uint[2] memory H, uint[18] memory proof) public view returns (bool) {
         
         //  c = d1 + d2 ;
         // c= proof[13], d1 = proof [9], d2= proof [10]

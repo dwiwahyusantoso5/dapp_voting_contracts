@@ -9,6 +9,7 @@ contract eVote {
     mapping(address=> uint[2]) public votes;
     mapping(address=>bool) public refunded;
     address[] public voters;
+    uint[5] public endPhases;
     bytes32 public usersMerkleTreeRoot;
     bytes32 public computationMerkleTreeRoot;
     uint public finishRegistartionBlockNumber;
@@ -16,32 +17,45 @@ contract eVote {
     uint public finishTallyBlockNumber;
     uint public finishChallengeBlockNumber;
     uint public constant DEPOSIT = 1 ether;
+    uint public voteCount;
     uint public voteResult;
-    constructor(address _cryptoAddress, bytes32 _usersMerkleTreeRoot, uint _registrationBlockInterval, uint _votingBlockInterval,
-     uint _tallyBlockInterval, uint _challengeBlockInterval) payable  public {
+    string public question;
+
+    constructor(address _cryptoAddress, bytes32 _usersMerkleTreeRoot, string memory _question, uint[5] memory _endPhases) payable  public {
         require(msg.value==DEPOSIT,"Invalid deposit value");
         crypto = Crypto(_cryptoAddress);
         admin = msg.sender;
         usersMerkleTreeRoot = _usersMerkleTreeRoot;
-        finishRegistartionBlockNumber = block.number+_registrationBlockInterval;
-        finishVotingBlockNumber = finishRegistartionBlockNumber + _votingBlockInterval;
-        finishTallyBlockNumber = finishVotingBlockNumber+_tallyBlockInterval;
-        finishChallengeBlockNumber = finishTallyBlockNumber+_challengeBlockInterval;
+        finishRegistartionBlockNumber = block.number + 100;
+        finishVotingBlockNumber = finishRegistartionBlockNumber + 100;
+        finishTallyBlockNumber = finishVotingBlockNumber + 100;
+        finishChallengeBlockNumber = finishTallyBlockNumber + 100;
+        question = _question;
+        endPhases = _endPhases;
     }
     function registerVoter(uint[2] memory _pubKey, uint[3] memory _discreteLogProof, bytes32[] memory _merkleProof) public payable{
         require(msg.value==DEPOSIT,"Invalid deposit value");
         require(block.number<finishRegistartionBlockNumber,"Registration phase is already closed");
         require(crypto.verifyMerkleProof(_merkleProof, usersMerkleTreeRoot, keccak256(abi.encodePacked(msg.sender))), "Invalid Merkle proof");
         require(crypto.verifyDL(_pubKey, _discreteLogProof),"Invalid DL proof");
-        voters.push(msg.sender);
         publicKeys[msg.sender] = _pubKey;
+        if(voters.length == 0) {
+            voters.push(msg.sender);
+        } else {
+            for(uint i=0; i<voters.length; i++) {
+                if(voters[i] != msg.sender && i == voters.length-1) {
+                    voters.push(msg.sender);
+                }
+            }
+        }
     }
-    // function castVote(uint[2] memory _vote, uint[2] memory _Y, uint[7] memory _zeroOrOneProof) public {
-    function castVote(uint[2] memory _vote, uint[2] memory _Y, uint[18] memory _zeroOrOneProof) public {
+    function castVote(uint[2] memory _vote, uint[2] memory _Y, uint[18] memory _zeroOrOneProof, uint _v) public {
         require(block.number >= finishRegistartionBlockNumber && block.number < finishVotingBlockNumber, "Voting phase is already closed");
         require(publicKeys[msg.sender] [0]!=0, "Unregistered voter");
         require(crypto.verifyZeroOrOne(_vote, _Y, _zeroOrOneProof),"Invalid zero or one proof");
         votes[msg.sender] = _vote;
+        voteCount = ++voteCount;
+        if(_v == 1) ++voteResult;
     }
     function setTallyResult(uint _result, bytes32 _computationRoot) public {
         require(msg.sender==admin,"Only admin can set the tally result");
@@ -80,5 +94,20 @@ contract eVote {
         require(refunded[msg.sender] == false && (votes[msg.sender][0] != 0 || (!disputed && msg.sender == admin) ),"Illegal reclaim");
         refunded[msg.sender] = true;
         msg.sender.transfer(DEPOSIT);
+    }
+    function getQuestion() public view returns (string memory) {
+        return question;
+    }
+    function getVoterCount() public view returns (uint){
+        return voters.length;
+    }
+    function getVoteCount() public view returns (uint){
+        return voteCount;
+    }
+    function getResult() public view returns (uint){
+        return voteResult;
+    }
+    function getEndPhases() public view returns (uint[5] memory){
+        return endPhases;
     }
 }
